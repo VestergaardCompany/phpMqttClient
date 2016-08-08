@@ -206,7 +206,7 @@ class Connector implements ConnectorInterface {
             $willRetain
         );
         $message = $packet->get();
-        echo MessageHelper::getReadableByRawString($message);
+        //echo MessageHelper::getReadableByRawString($message);
 
         $deferred = new Deferred();
         if ($stream->write($message)) {
