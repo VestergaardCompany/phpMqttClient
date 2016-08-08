@@ -274,7 +274,6 @@ class Connector implements ConnectorInterface {
     {
         $packet = new Disconnect($this->version);
         $this->sentMessageToStream($stream, $packet);
-        $this->getLoop()->stop();
         return new FulfilledPromise($stream);
     }
 
