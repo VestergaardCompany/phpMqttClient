@@ -75,6 +75,16 @@ class Publish extends ControlPacket {
     }
 
     /**
+     * Returns the topic
+     *
+     * @return string
+     */
+    public function getTopic()
+    {
+        return $this->topic;
+    }
+
+    /**
      * @param $messageId
      * @return $this
      */
