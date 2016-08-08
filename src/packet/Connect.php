@@ -13,79 +13,37 @@ class Connect extends ControlPacket {
 
     /** @var bool */
     protected $useVariableHeader = true;
-
-    /** @var null|string */
-    protected $clientId = null;
-
-    /** @var null|string  */
-    protected $username = null;
-
-    /** @var null|string  */
-    protected $password = null;
-
-    /** @var bool  */
-    protected $cleanSession = true;
-
-    /** @var string|null  */
-    protected $willTopic;
-
-    /** @var string|null  */
-    protected $willMessage;
-
-    /** @var bool|null  */
-    protected $willQos;
-
-    /** @var null */
-    protected $willRetain;
-
-    protected $keepAlive = 10;
+    
+    /**
+     * @var ConnectionOptions
+     */
+    protected $options = null;
 
     /**
      * @param Version $version
-     * @param string|null $username
-     * @param string|null $password
-     * @param string|null $clientId
-     * @param bool $cleanSession
-     * @param string|null $willTopic
-     * @param string|null $willMessage
-     * @param bool|null $willQos
-     * @param null $willRetain
+     * @param ConnectionOptions $options
      */
-    public function __construct(
-        Version $version,
-        $username = null,
-        $password = null,
-        $clientId = null,
-        $cleanSession = true,
-        $willTopic = null,
-        $willMessage = null,
-        $willQos = null,
-        $willRetain = null
-    ) {
+    public function __construct(Version $version, ConnectionOptions $options)
+    {
         parent::__construct($version);
-        $this->clientId = $clientId;
-        $this->username = $username;
-        $this->password = $password;
-        $this->cleanSession = boolval($cleanSession);
-        $this->willTopic = $willTopic;
-        $this->willMessage = $willMessage;
-        $this->willQos = boolval($willQos);
-        $this->willRetain = $willRetain;
+
+        $this->options = $options;
+
         $this->buildPayload();
     }
 
     protected function buildPayload()
     {
         $this->addLengthPrefixedField($this->getClientId());
-        if (!is_null($this->willTopic) && !is_null($this->willMessage)) {
-            $this->addLengthPrefixedField($this->willTopic);
-            $this->addLengthPrefixedField($this->willMessage);
+        if (!is_null($this->options->willTopic) && !is_null($this->options->willMessage)) {
+            $this->addLengthPrefixedField($this->options->willTopic);
+            $this->addLengthPrefixedField($this->options->willMessage);
         }
-        if (!empty($this->username)) {
-            $this->addLengthPrefixedField($this->username);
+        if (!empty($this->options->username)) {
+            $this->addLengthPrefixedField($this->options->username);
         }
-        if (!empty($this->password)) {
-            $this->addLengthPrefixedField($this->password);
+        if (!empty($this->options->password)) {
+            $this->addLengthPrefixedField($this->options->password);
         }
     }
 
@@ -107,8 +65,8 @@ class Connect extends ControlPacket {
         . $this->version->getProtocolIdentifierString()              // byte 3,4,5,6
         . chr($this->version->getProtocolVersion())                  // byte 7
         . chr($this->getConnectFlags())                              // byte 8
-        . chr(($this->keepAlive >> 8) & 0x00FF)                      // byte 9
-        . chr($this->keepAlive & 0x00FF)                             // byte 10
+        . chr(($this->options->keepAlive >> 8) & 0x00FF)             // byte 9
+        . chr($this->options->keepAlive & 0x00FF)                    // byte 10
         ;
     }
 
@@ -118,27 +76,27 @@ class Connect extends ControlPacket {
     protected function getConnectFlags()
     {
         $connectByte = 0;
-        if ($this->cleanSession) {
+        if ($this->options->cleanSession) {
             $connectByte += 1 << 1;
         }
-        if (!is_null($this->willTopic) && !is_null($this->willMessage)) {
+        if (!is_null($this->options->willTopic) && !is_null($this->options->willMessage)) {
             $connectByte += 1 << 2;
         }
 
-        if ($this->willQos) {
+        if ($this->options->willQos) {
             $connectByte += 1 << 3;
             // 4 TODO ?
         }
 
-        if ($this->willRetain) {
+        if ($this->options->willRetain) {
             $connectByte += 1 << 5;
         }
 
-        if (!empty($this->password)) {
+        if (!empty($this->options->password)) {
             $connectByte += 1 << 6;
         }
 
-        if (!empty($this->username)) {
+        if (!empty($this->options->username)) {
             $connectByte += 1 << 7;
         }
         return $connectByte;
@@ -149,9 +107,9 @@ class Connect extends ControlPacket {
      */
     public function getClientId()
     {
-        if (is_null($this->clientId)) {
-            $this->clientId = md5(microtime());
+        if (is_null($this->options->clientId)) {
+            $this->options->clientId = md5(microtime());
         }
-        return substr($this->clientId, 0, 23);
+        return substr($this->options->clientId, 0, 23);
     }
 }

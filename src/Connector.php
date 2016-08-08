@@ -116,17 +116,7 @@ class Connector implements ConnectorInterface {
         return $this->socketConnector->create($host, $port)
             ->then(
                 function (Stream $stream) use ($options) {
-                    return $this->connect(
-                        $stream,
-                        $options->username,
-                        $options->password,
-                        $options->clientId,
-                        $options->cleanSession,
-                        $options->willTopic,
-                        $options->willMessage,
-                        $options->willQos,
-                        $options->willRetain
-                    );
+                    return $this->connect($stream, $options);
                 }
             )
             ->then(
@@ -183,28 +173,9 @@ class Connector implements ConnectorInterface {
         $this->sentMessageToStream($stream, $packet);
     }
 
-    public function connect(
-        Stream $stream,
-        $username = null,
-        $password = null,
-        $clientId = null,
-        $cleanSession = true,
-        $willTopic = null,
-        $willMessage = null,
-        $willQos = null,
-        $willRetain = null
-    ) {
-        $packet = new Connect(
-            $this->version,
-            $username,
-            $password,
-            $clientId,
-            $cleanSession,
-            $willTopic,
-            $willMessage,
-            $willQos,
-            $willRetain
-        );
+    public function connect(Stream $stream, ConnectionOptions $options)
+    {
+        $packet = new Connect($this->version, $options);
         $message = $packet->get();
         //echo MessageHelper::getReadableByRawString($message);
 
