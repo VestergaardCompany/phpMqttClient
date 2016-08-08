@@ -136,7 +136,7 @@ class Connector implements ConnectorInterface {
                         foreach ($messages as $data) {
                             try {
                                 $message = Factory::getByMessage($this->version, $data);
-                                echo "received:\t" . get_class($message) . "\n";
+                                //echo "received:\t" . get_class($message) . "\n";
                                 // echo MessageHelper::getReadableByRawString($data);
                                 if ($message instanceof ConnectionAck) {
                                     $stream->emit(StreamEvent::CONNECTION_ACK, array($message));
@@ -229,7 +229,7 @@ class Connector implements ConnectorInterface {
 
     protected function sentMessageToStream(Stream $stream, $controlPacket)
     {
-        echo "send:\t\t" . get_class($controlPacket) . "\n";
+        //echo "send:\t\t" . get_class($controlPacket) . "\n";
         $message = $controlPacket->get();
         return $this->sendToStream($stream, $message);
     }
