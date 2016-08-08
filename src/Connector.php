@@ -32,6 +32,8 @@ use React\Promise\Deferred;
 use React\Promise\FulfilledPromise;
 use React\Promise\PromiseInterface;
 use React\SocketClient\ConnectorInterface;
+use React\SocketClient\DnsConnector;
+use React\SocketClient\TcpConnector;
 use React\Stream\Stream;
 
 class Connector implements ConnectorInterface {
@@ -54,7 +56,7 @@ class Connector implements ConnectorInterface {
     public function __construct(LoopInterface $loop, Resolver $resolver, Version $version)
     {
         $this->version = $version;
-        $this->socketConnector = new \React\SocketClient\Connector($loop, $resolver);
+        $this->socketConnector = new DnsConnector(new TcpConnector($loop), $resolver);
         $this->loop = $loop;
     }
 
