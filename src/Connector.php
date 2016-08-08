@@ -126,8 +126,8 @@ class Connector implements ConnectorInterface {
                         foreach ($messages as $data) {
                             try {
                                 $message = Factory::getByMessage($this->version, $data);
-                                //echo "received:\t" . get_class($message) . "\n";
-                                // echo MessageHelper::getReadableByRawString($data);
+                                //echo PHP_EOL . "received:\t" . get_class($message);
+                                //echo PHP_EOL . MessageHelper::getReadableByRawString($data);
                                 if ($message instanceof ConnectionAck) {
                                     $stream->emit(StreamEvent::CONNECTION_ACK, array($message));
                                 } elseif ($message instanceof PingResponse) {
