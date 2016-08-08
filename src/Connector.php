@@ -50,6 +50,13 @@ class Connector implements ConnectorInterface {
     protected $messageCounter = 1;
 
     /**
+     * Debug mode
+     *
+     * @var bool
+     */
+    protected $debug = false;
+
+    /**
      * @var $loop LoopInterface
      */
     protected $loop;
@@ -126,8 +133,12 @@ class Connector implements ConnectorInterface {
                         foreach ($messages as $data) {
                             try {
                                 $message = Factory::getByMessage($this->version, $data);
-                                //echo PHP_EOL . "received:\t" . get_class($message);
-                                //echo PHP_EOL . MessageHelper::getReadableByRawString($data);
+
+                                if($this->debug){
+                                    $this->output('received:\t' . get_class($message));
+                                    $this->output(MessageHelper::getReadableByRawString($data));
+                                }
+
                                 if ($message instanceof ConnectionAck) {
                                     $stream->emit(StreamEvent::CONNECTION_ACK, array($message));
                                 } elseif ($message instanceof PingResponse) {
@@ -177,7 +188,10 @@ class Connector implements ConnectorInterface {
     {
         $packet = new Connect($this->version, $options);
         $message = $packet->get();
-        //echo MessageHelper::getReadableByRawString($message);
+
+        if($this->debug){
+            $this->output(MessageHelper::getReadableByRawString($message));
+        }
 
         $deferred = new Deferred();
         if ($stream->write($message)) {
@@ -298,6 +312,26 @@ class Connector implements ConnectorInterface {
     public function getLoop()
     {
         return $this->loop;
+    }
+
+    /**
+     * Output a message
+     *
+     * @param string $message
+     */
+    protected function output($message)
+    {
+        echo PHP_EOL . $message;
+    }
+
+    /**
+     * Set the debug state of this connector
+     *
+     * @param bool $runInDebugMode [optional] If true, additional debugging information can be viewed in output
+     */
+    public function debug($runInDebugMode = false)
+    {
+        $this->debug = $runInDebugMode;
     }
 
     /**
