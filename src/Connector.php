@@ -8,6 +8,7 @@
 namespace oliverlorenz\reactphpmqtt;
 
 use oliverlorenz\reactphpmqtt\packet\ConnectionOptions;
+use oliverlorenz\reactphpmqtt\packet\Events\StreamEvent;
 use oliverlorenz\reactphpmqtt\packet\MessageHelper;
 use oliverlorenz\reactphpmqtt\packet\PublishAck;
 use oliverlorenz\reactphpmqtt\packet\PublishComplete;
@@ -138,19 +139,19 @@ class Connector implements ConnectorInterface {
                                 echo "received:\t" . get_class($message) . "\n";
                                 // echo MessageHelper::getReadableByRawString($data);
                                 if ($message instanceof ConnectionAck) {
-                                    $stream->emit('CONNECTION_ACK', array($message));
+                                    $stream->emit(StreamEvent::CONNECTION_ACK, array($message));
                                 } elseif ($message instanceof PingResponse) {
-                                    $stream->emit('PING_RESPONSE', array($message));
+                                    $stream->emit(StreamEvent::PING_RESPONSE, array($message));
                                 } elseif ($message instanceof Publish) {
-                                    $stream->emit('PUBLISH', array($message));
+                                    $stream->emit(StreamEvent::PUBLISH, array($message));
                                 } elseif ($message instanceof PublishReceived) {
-                                    $stream->emit('PUBLISH_RECEIVED', array($message));
+                                    $stream->emit(StreamEvent::PUBLISH_RECEIVED, array($message));
                                 } elseif ($message instanceof PublishRelease) {
-                                    $stream->emit('PUBLISH_RELEASE', array($message));
+                                    $stream->emit(StreamEvent::PUBLISH_RELEASE, array($message));
                                 } elseif ($message instanceof UnsubscribeAck) {
-                                    $stream->emit('UNSUBSCRIBE_ACK', array($message));
+                                    $stream->emit(StreamEvent::UNSUBSCRIBE_ACK, array($message));
                                 } elseif ($message instanceof SubscribeAck) {
-                                    $stream->emit('SUBSCRIBE_ACK', array($message));
+                                    $stream->emit(StreamEvent::SUBSCRIBE_ACK, array($message));
                                 }
                             } catch (\InvalidArgumentException $ex) {
 
@@ -159,7 +160,7 @@ class Connector implements ConnectorInterface {
                     });
 
                     $deferred = new Deferred();
-                    $stream->on('CONNECTION_ACK', function($message) use ($stream, $deferred) {
+                    $stream->on(StreamEvent::CONNECTION_ACK, function($message) use ($stream, $deferred) {
                         $deferred->resolve($stream);
                     });
                     return $deferred->promise();
