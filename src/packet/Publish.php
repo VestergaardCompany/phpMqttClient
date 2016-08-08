@@ -147,6 +147,16 @@ class Publish extends ControlPacket {
         $this->message = $message;
     }
 
+    /**
+     * Returns the message
+     *
+     * @return string
+     */
+    public function getMessage()
+    {
+        return $this->message;
+    }
+
     protected function addReservedBitsToFixedHeaderControlPacketType($byte1)
     {
         $qosByte = 0;
