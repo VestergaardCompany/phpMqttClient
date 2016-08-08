@@ -27,7 +27,7 @@ class Connect extends ControlPacket {
     {
         parent::__construct($version);
 
-        $this->options = $options;
+        $this->options = clone $options;
 
         $this->buildPayload();
     }
