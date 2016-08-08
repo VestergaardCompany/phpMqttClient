@@ -101,6 +101,19 @@ class ConnectionOptions
     public $willRetain = false;
 
     /**
+     * Keep alive
+     *
+     * Measured in seconds.
+     *
+     * The maximum value is 18 hours 12 minutes and 15 seconds.
+     *
+     * @see 3.1.2.10 Keep Alive
+     *
+     * @var int
+     */
+    public $keepAlive = 10;
+
+    /**
      * ConnectionOptions constructor.
      *
      * @param array $options [optional]

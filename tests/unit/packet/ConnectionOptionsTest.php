@@ -49,7 +49,8 @@ class ConnectionOptionsTest extends PHPUnit_Framework_TestCase
             'willTopic'     =>  'lost/',
             'willMessage'   =>  'John has left...',
             'willQos'       =>  Levels::EXACTLY_ONCE_DELIVERY,
-            'willRetain'    =>  true
+            'willRetain'    =>  true,
+            'keepAlive'     =>  25
         ];
 
         $options = $this->makeConnectionOptions($data);
@@ -62,5 +63,6 @@ class ConnectionOptionsTest extends PHPUnit_Framework_TestCase
         $this->assertSame($data['willMessage'], $options->willMessage, 'Incorrect will message set');
         $this->assertSame($data['willQos'], $options->willQos, 'Incorrect will quality of service set');
         $this->assertSame($data['willRetain'], $options->willRetain, 'Incorrect will retain state set');
+        $this->assertSame($data['keepAlive'], $options->keepAlive, 'Incorrect keep alive duration set');
     }
 }
