@@ -83,7 +83,7 @@ abstract class ControlPacket {
         $byte2 = $this->getRemainingLength();
 
         return chr($byte1)
-             . chr($byte2);
+             . chr($byte2)
              ;
     }
 
