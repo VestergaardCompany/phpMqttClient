@@ -142,7 +142,7 @@ class Publish extends ControlPacket {
     /**
      * @param string $message
      */
-    private function setMessage($message)
+    protected function setMessage($message)
     {
         $this->message = $message;
     }
