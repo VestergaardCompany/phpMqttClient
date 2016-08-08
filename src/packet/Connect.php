@@ -38,6 +38,8 @@ class Connect extends ControlPacket {
     /** @var null */
     protected $willRetain;
 
+    protected $keepAlive = 10;
+
     /**
      * @param Version $version
      * @param string|null $username
@@ -105,8 +107,8 @@ class Connect extends ControlPacket {
         . $this->version->getProtocolIdentifierString()              // byte 3,4,5,6
         . chr($this->version->getProtocolVersion())                  // byte 7
         . chr($this->getConnectFlags())                              // byte 8
-        . chr(0)                                                     // byte 9
-        . chr(10)                                                    // byte 10
+        . chr(($this->keepAlive >> 8) & 0x00FF)                      // byte 9
+        . chr($this->keepAlive & 0x00FF)                             // byte 10
         ;
     }
 
