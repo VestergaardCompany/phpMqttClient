@@ -9,7 +9,7 @@ use RuntimeException;
  * @author Alin Eugen Deac <ade@vestergaardcompany.com>
  * @package oliverlorenz\reactphpmqtt\packet\Exceptions
  */
-class TimeoutException extends RuntimeException
+class TimeoutException extends PhpMqttClientException
 {
 
 }
