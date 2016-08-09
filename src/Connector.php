@@ -9,6 +9,8 @@ namespace oliverlorenz\reactphpmqtt;
 
 use oliverlorenz\reactphpmqtt\packet\ConnectionOptions;
 use oliverlorenz\reactphpmqtt\packet\Events\StreamEvent;
+use oliverlorenz\reactphpmqtt\packet\Exceptions\StreamException;
+use oliverlorenz\reactphpmqtt\packet\Exceptions\TimeoutException;
 use oliverlorenz\reactphpmqtt\packet\MessageHelper;
 use oliverlorenz\reactphpmqtt\packet\PublishAck;
 use oliverlorenz\reactphpmqtt\packet\PublishComplete;
@@ -123,11 +125,7 @@ class Connector implements ConnectorInterface {
         return $this->socketConnector->create($host, $port)
             ->then(
                 function (Stream $stream) use ($options) {
-                    return $this->connect($stream, $options);
-                }
-            )
-            ->then(
-                function (Stream $stream) {
+
                     $stream->on('data', function ($rawData) use($stream) {
                         $messages = $this->getSplittedMessage($rawData);
                         foreach ($messages as $data) {
@@ -159,18 +157,13 @@ class Connector implements ConnectorInterface {
                             }
                         }
                     });
-
-                    $deferred = new Deferred();
-                    $stream->on(StreamEvent::CONNECTION_ACK, function($message) use ($stream, $deferred) {
-                        $deferred->resolve($stream);
-                    });
-                    return $deferred->promise();
+                    return $this->connect($stream, $options);
                 }
             )
             ->then(
-                function(Stream $stream) {
+                function(Stream $stream) use($options) {
                     // alive ping
-                    $this->getLoop()->addPeriodicTimer(10, function(Timer $timer) use ($stream) {
+                    $this->getLoop()->addPeriodicTimer($options->keepAlive / 2, function(Timer $timer) use ($stream) {
                         $this->ping($stream);
                     });
                     return new FulfilledPromise($stream);
@@ -187,19 +180,16 @@ class Connector implements ConnectorInterface {
     public function connect(Stream $stream, ConnectionOptions $options)
     {
         $packet = new Connect($this->version, $options);
-        $message = $packet->get();
 
         if($this->debug){
+            $message = $packet->get();
             $this->output(MessageHelper::getReadableByRawString($message));
         }
 
-        $deferred = new Deferred();
-        if ($stream->write($message)) {
-            $deferred->resolve($stream);
-        } else {
-            $deferred->reject();
+        if (!$this->sentMessageToStream($stream, $packet)) {
+            return \React\Promise\reject(new StreamException('Cannot send stream. Please check your event loop.'));
         }
-        return $deferred->promise();
+        return $this->waitForAcknowledge($stream, StreamEvent::CONNECTION_ACK, 2);
     }
 
     /**
@@ -220,6 +210,35 @@ class Connector implements ConnectorInterface {
     }
 
     /**
+     * Wait for event acknowledgement
+     *
+     * @param Stream $stream
+     * @param string $ack Acknowledgement event to wait for
+     * @param int $timeout [optional]
+     *
+     * @return PromiseInterface Resolves into Stream once acknowledged
+     */
+    protected function waitForAcknowledge(Stream $stream, $ack, $timeout = 5)
+    {
+        $timer = null;
+        $handler = null;
+        $deferred = new Deferred();
+
+        $handler = function($message) use ($stream, $deferred, &$timer) {
+            $timer->cancel();
+            $deferred->resolve($stream);
+        };
+
+        $timer = $this->getLoop()->addTimer($timeout, function() use($stream, $deferred, &$handler, $ack) {
+            $stream->removeListener($ack, $handler);
+            $deferred->reject(new TimeoutException($ack . ' timeout'));
+        });
+
+        $stream->once($ack, $handler);
+        return $deferred->promise();
+    }
+
+    /**
      * @param Stream $stream
      * @param string $topic
      * @param int $qos
@@ -227,16 +246,10 @@ class Connector implements ConnectorInterface {
      */
     public function subscribe(Stream $stream, $topic, $qos = 0)
     {
-        $deferred = new Deferred();
         $packet = new Subscribe($this->version);
         $packet->addSubscription($topic, $qos);
         $this->sentMessageToStream($stream, $packet);
-
-        $deferred = new Deferred();
-        $stream->on('SUBSCRIBE_ACK', function($message) use ($stream, $deferred) {
-            $deferred->resolve($stream);
-        });
-        return $deferred->promise();
+        return $this->waitForAcknowledge($stream, StreamEvent::SUBSCRIBE_ACK);
     }
 
     /**
@@ -247,12 +260,7 @@ class Connector implements ConnectorInterface {
         $packet = new Unsubscribe($this->version);
         $packet->removeSubscription($topic);
         $this->sentMessageToStream($stream, $packet);
-
-        $deferred = new Deferred();
-        $stream->on('UNSUBSCRIBE_ACK', function($message) use ($stream, $deferred) {
-            $deferred->resolve($stream);
-        });
-        return $deferred->promise();
+        return $this->waitForAcknowledge($stream, StreamEvent::UNSUBSCRIBE_ACK);
     }
 
     public function disconnect(Stream $stream)
@@ -272,6 +280,12 @@ class Connector implements ConnectorInterface {
         $packet->setDup($dup);
         $packet->addRawToPayLoad($message);
         $success = $this->sentMessageToStream($stream, $packet);
+
+        if($this->debug){
+            $message = $packet->get();
+            $this->output(MessageHelper::getReadableByRawString($message));
+        }
+
         if ($success) {
             $deferred->resolve($stream);
         } else {
@@ -317,10 +331,12 @@ class Connector implements ConnectorInterface {
     /**
      * Output a message
      *
-     * @param string $message
+     * @param mixed
      */
-    protected function output($message)
+    protected function output()
     {
+        $message = implode(', ', func_get_args());
+
         echo PHP_EOL . $message;
     }
 

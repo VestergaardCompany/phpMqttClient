@@ -6,6 +6,7 @@ use oliverlorenz\reactphpmqtt\packet\Events\StreamEvent;
 use oliverlorenz\reactphpmqtt\packet\Publish;
 use oliverlorenz\reactphpmqtt\packet\QoS\Levels;
 use oliverlorenz\reactphpmqtt\protocol\Version4;
+use oliverlorenz\reactphpmqtt\SecureConnector;
 use React\Dns\Resolver\Resolver;
 use React\EventLoop\Factory as EventLoopFactory;
 use React\Dns\Resolver\Factory as DNSResolverFactory;
@@ -30,16 +31,23 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
     /**
      * Hostname
      *
+     * @see http://iot.eclipse.org/getting-started
+     *
      * @var string
      */
     protected $hostname = 'iot.eclipse.org';
+    //protected $hostname = 'dev.webdts35.localhost';
 
     /**
      * Port
      *
+     * 1883, unsecured connection
+     * 8883, secure connection
+     *
      * @var int
      */
-    protected $port = 1883;
+    protected $port = 8883;
+    //protected $port = 46423;
 
     /**
      * The topic
@@ -56,6 +64,13 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
     protected $loop;
 
     /**
+     * Loop timeout, duration in seconds
+     *
+     * @var int
+     */
+    protected $loopTimeout = 15;
+
+    /**
      * DNS Resolver
      *
      * @var Resolver
@@ -68,6 +83,13 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
      * @var \oliverlorenz\reactphpmqtt\protocol\Version
      */
     protected $version;
+
+    /**
+     * State of connector
+     *
+     * @var bool
+     */
+    protected $debug = true;
 
     /**
      * {@inheritdoc}
@@ -84,7 +106,7 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
         $this->resolver = (new DNSResolverFactory())->createCached($this->nameServer, $this->loop);
 
         // Add loop timeout
-        $this->loop->addPeriodicTimer(10, function(){
+        $this->loop->addPeriodicTimer($this->loopTimeout, function(){
             $this->loop->stop();
             $this->assertTrue(false, 'Event loop timeout');
         });
@@ -95,7 +117,9 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
      */
     public function tearDown()
     {
+        unset($this->loop);
 
+        $this->line();
     }
 
     /*******************************************************
@@ -119,7 +143,15 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
      */
     public function makeConnector()
     {
-        return new Connector($this->loop, $this->resolver, $this->version);
+        if($this->port == 8883){
+            $connector =  new SecureConnector($this->loop, $this->resolver, $this->version);
+        } else {
+            $connector = new Connector($this->loop, $this->resolver, $this->version);
+        }
+
+        $connector->debug($this->debug);
+
+        return $connector;
     }
 
     /**
@@ -131,6 +163,9 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
      */
     protected function makeConnectionOptions(array $options = [])
     {
+        //$options['username'] = 'vcas';
+        //$options['password'] = 'vcas0030';
+
         return new ConnectionOptions($options);
     }
 
@@ -141,7 +176,7 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
      */
     protected function makeTopic()
     {
-        return $this->topicPrefix . '/' . uniqid();
+        return $this->topicPrefix . uniqid();
     }
 
     /**
@@ -154,6 +189,14 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
         $message = implode(', ', func_get_args());
 
         print PHP_EOL . $message;
+    }
+
+    /**
+     * Outputs a line
+     */
+    protected function line()
+    {
+        $this->output(str_repeat('- - ', 25));
     }
 
     /*******************************************************
@@ -174,40 +217,135 @@ class SendAndReceiveTest extends PHPUnit_Framework_TestCase
         // We connect with A, where we subscribe to a topic and listen
         // for messages on that topic.
         $connectorA->create($this->hostname, $this->port, $options)
-        ->then(function(Stream $stream) use ($connectorA, &$topic, &$message) {
+        ->then(function(Stream $stream) use (&$message){
+
+            $this->output('created...', time());
 
             // On message received
             $stream->on(StreamEvent::PUBLISH, function(Publish $packet) use (&$message){
-                $this->output('Received', $packet->getMessage());
+                $this->output($packet->getTopic(), 'Received', $packet->getMessage(), time());
 
                 // Assert and stop the loop
                 $this->assertSame($message, $packet->getMessage(), 'Incorrect sent message');
                 $this->stop();
             });
 
-            // Subscribe
-            $connectorA->subscribe($stream, $topic, Levels::AT_LEAST_ONCE_DELIVERY)
-                ->then(function(Stream $stream) use (&$topic){
-                    $this->output('Subscribed to', $topic);
-                });
-
             return $stream;
+        })
+
+        ->then(function(Stream $stream) use ($connectorA, &$topic) {
+
+            // Subscribe
+            return $connectorA->subscribe($stream, $topic, Levels::AT_LEAST_ONCE_DELIVERY)
+            ->then(function(Stream $stream) use (&$topic){
+                $this->output('Connector A', 'Subscribed to', $topic, time());
+                return $stream;
+            });
         })
 
         // Once the first connector has been setup, we create the second connector, which
         // then publishes a message to the same topic as the first connector
         ->then(function(Stream $stream) use($connectorB, $options, &$topic, &$message){
-
+            $options->clientId = "connectorB";
             $connectorB->create($this->hostname, $this->port, $options)
             ->then(function(Stream $stream) use($connectorB, &$topic, &$message){
 
                 // Publish message
                $connectorB->publish($stream, $topic, $message)
-               ->then(function(Stream $stream) use(&$message){
-                   $this->output('Published', $message);
+               ->then(function(Stream $stream) use(&$message, &$topic){
+                   $this->output('Connector B', 'Published', $message, $topic, time());
                });
 
             });
+        })
+        ->then(null, function($reason) {
+            $this->output("Rejected: ", $reason->getMessage());
+        });
+
+        $this->start();
+    }
+
+    public function testWillMessageIsPublished()
+    {
+        $topic = $this->makeTopic();
+        $willTopic = $this->makeTopic();
+
+        $message = 'Walking on the Moon';
+        $willMessage = 'connector offline';
+
+        $options = $this->makeConnectionOptions([
+            'willTopic'     => $willTopic,
+            'willMessage'   => $willMessage
+        ]);
+
+        $connectorA = $this->makeConnector();
+        $connectorB = $this->makeConnector();
+
+        // We connect with A, where we subscribe to a topic and listen
+        // for messages on that topic.
+        $connectorA->create($this->hostname, $this->port, null)
+        ->then(function(Stream $stream) use ($options){
+            // On message received
+            $stream->on(StreamEvent::PUBLISH, function(Publish $packet) use ($options){
+                $this->output($packet->getTopic(), 'Received', $packet->getMessage());
+
+                // Assert and stop the loop
+                if($packet->getTopic() == $options->willTopic){
+                    $this->output('will received');
+
+                    $this->assertSame($options->willMessage, $packet->getMessage(), 'Incorrect will message received');
+                    $this->stop();
+                }
+            });
+
+            return $stream;
+        })
+        ->then(function(Stream $stream) use ($connectorA, &$topic, $options) {
+
+            // Subscribe
+            return $connectorA->subscribe($stream, $topic, Levels::AT_LEAST_ONCE_DELIVERY)
+            ->then(function(Stream $stream) use (&$topic){
+                $this->output('Connector A', 'Subscribed to', $topic);
+                return $stream;
+            })
+            ->then(function($stream) use($connectorA, $options) {
+                return $connectorA->subscribe($stream, $options->willTopic, Levels::AT_LEAST_ONCE_DELIVERY)
+                ->then(function (Stream $stream) use ($options) {
+                    $this->output('Connector A', 'Subscribed to', $options->willTopic);
+                    return $stream;
+                });
+            });
+
+        })
+
+        // Once the first connector has been setup, we create the second connector, which
+        // then jus terminates the stream
+        ->then(function(Stream $stream) use($connectorB, $options, &$topic, &$message){
+
+            $connectorB->create($this->hostname, $this->port, $options)
+            ->then(function(Stream $stream) use($connectorB, &$topic, &$message) {
+                $this->output('Connector B', 'connected', time());
+
+                $this->output('Connector B', 'Publishing', $message);
+                // Publish message
+                return $connectorB->publish($stream, $topic, $message, Levels::AT_LEAST_ONCE_DELIVERY)
+                ->then(function(Stream $stream) use($message, &$topic){
+                    $this->output('Connector B', 'Published', $message, $topic, time());
+                    return $stream;
+                });
+            })
+            ->then(function(Stream $stream) {
+                $this->loop->addTimer(1, function() use($stream) {
+                    $stream->close();
+
+                    $this->output('Connector B', 'stream closed', time());
+                });
+            });
+
+            return $stream;
+        })
+        ->then(null, function($reason) {
+            $this->output("Rejected: ", $reason->getMessage());
         });
 
         $this->start();
