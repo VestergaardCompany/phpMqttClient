@@ -111,7 +111,7 @@ class ConnectionOptions
      *
      * @var int
      */
-    public $keepAlive = 10;
+    public $keepAlive = 5;
 
     /**
      * ConnectionOptions constructor.
